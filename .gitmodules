@@ -1,0 +1,6 @@
+[submodule "core"]
+	path = core
+	url = ./core/
+[submodule "data"]
+	path = data
+	url = ./data/
