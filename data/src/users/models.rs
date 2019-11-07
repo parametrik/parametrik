@@ -1,3 +1,4 @@
+use serde::Serialize;
 use crate::schema::users;
 use diesel::prelude::*;
 use scrypt::{scrypt_check, scrypt_simple, ScryptParams};
@@ -15,7 +16,7 @@ pub enum AuthenticationError {
     DatabaseError(diesel::result::Error),
 }
 
-#[derive(Queryable, Debug)]
+#[derive(Queryable, Debug, Serialize)]
 pub struct User {
     pub id: i32,
     pub name: String,
@@ -107,7 +108,7 @@ impl User {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::test_helpers::*;
+    use crate::test_helpers::*;
 
     #[test]
     fn register_works() {
