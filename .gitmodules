@@ -1,6 +1,6 @@
-[submodule "core"]
-	path = core
-	url = ./core/
+[submodule "cli"]
+	path = cli
+	url = ./cli/
 [submodule "data"]
 	path = data
 	url = ./data/
