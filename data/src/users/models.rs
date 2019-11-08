@@ -1,7 +1,7 @@
-use serde::Serialize;
 use crate::schema::users;
 use diesel::prelude::*;
 use scrypt::{scrypt_check, scrypt_simple, ScryptParams};
+use serde::Serialize;
 
 #[derive(Debug)]
 pub enum AuthenticationError {
@@ -46,21 +46,13 @@ impl<'a> NewUser<'a> {
         }
     }
 
-    pub fn create_or_update(&self, conn: &PgConnection) -> QueryResult<User> {
+    pub fn create(&self, conn: &PgConnection) -> QueryResult<User> {
         use crate::schema::users::dsl::*;
         use diesel::insert_into;
-        use diesel::pg::upsert::excluded;
 
         conn.transaction(|| {
             let user = insert_into(users)
                 .values(self)
-                .on_conflict(email)
-                .do_update()
-                .set((
-                    name.eq(excluded(name)),
-                    email.eq(excluded(email)),
-                    password_hash.eq(excluded(password_hash)),
-                ))
                 .returning((id, name, email))
                 .get_result::<User>(conn)?;
 
@@ -80,7 +72,7 @@ impl User {
         let password_hash =
             scrypt_simple(password, &params).map_err(AuthenticationError::ScryptError)?;
         NewUser::new(name, email, &password_hash)
-            .create_or_update(conn)
+            .create(conn)
             .map_err(AuthenticationError::DatabaseError)
     }
 
@@ -109,25 +101,81 @@ impl User {
 mod tests {
     use super::*;
     use crate::test_helpers::*;
+    use diesel::result::{DatabaseErrorKind::UniqueViolation, Error::DatabaseError};
 
     #[test]
     fn register_works() {
         let conn = get_test_connection();
 
-        let user =
-            User::register("Scott Trinh", "scott@scotttrinh.com", "aPassword", &conn).unwrap();
+        let user = User::register(
+            "Scott Trinh",
+            "scott+test@scotttrinh.com",
+            "aPassword",
+            &conn,
+        )
+        .unwrap();
         assert_eq!(user.name, "Scott Trinh");
-        assert_eq!(user.email, "scott@scotttrinh.com");
+        assert_eq!(user.email, "scott+test@scotttrinh.com");
 
-        let expected_user = User::find("scott@scotttrinh.com", "aPassword", &conn).unwrap();
+        let expected_user = User::find("scott+test@scotttrinh.com", "aPassword", &conn).unwrap();
         assert_eq!(user.id, expected_user.id);
         assert_eq!(user.name, expected_user.name);
         assert_eq!(user.email, expected_user.email);
+    }
 
-        let wrong_password = User::find("scott@scotttrinh.com", "wrongPassword", &conn);
+    #[test]
+    fn register_conflict() {
+        let conn = get_test_connection();
+
+        User::register(
+            "Scott Trinh",
+            "scott+test@scotttrinh.com",
+            "aPassword",
+            &conn,
+        )
+        .unwrap();
+
+        let conflict = User::register(
+            "Scott Trinh",
+            "scott+test@scotttrinh.com",
+            "aPassword",
+            &conn,
+        );
+        assert_matches!(
+            conflict,
+            Err(AuthenticationError::DatabaseError(DatabaseError(UniqueViolation, _)))
+        );
+    }
+
+    #[test]
+    fn find_wrong_password() {
+        let conn = get_test_connection();
+
+        User::register(
+            "Scott Trinh",
+            "scott+test@scotttrinh.com",
+            "aPassword",
+            &conn,
+        )
+        .unwrap();
+
+        let wrong_password = User::find("scott+test@scotttrinh.com", "wrongPassword", &conn);
         assert_matches!(wrong_password, Err(AuthenticationError::IncorrectPassword));
+    }
 
-        let wrong_email = User::find("scott+1@scotttrinh.com", "aPassword", &conn);
+    #[test]
+    fn find_miss() {
+        let conn = get_test_connection();
+
+        User::register(
+            "Scott Trinh",
+            "scott+test@scotttrinh.com",
+            "aPassword",
+            &conn,
+        )
+        .unwrap();
+
+        let wrong_email = User::find("scott+missing@scotttrinh.com", "aPassword", &conn);
         assert_matches!(wrong_email, Err(AuthenticationError::UserNotFound));
     }
 }
