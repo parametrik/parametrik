@@ -28,5 +28,5 @@ pub fn create(
 }
 
 pub fn build_routes() -> actix_web::Resource {
-    web::resource("/").route(web::post().to_async(create))
+    web::resource("").route(web::post().to_async(create))
 }
