@@ -5,14 +5,14 @@ use serde::Deserialize;
 use crate::users::models::User;
 
 #[derive(Deserialize)]
-pub struct UserCreateIO {
+pub struct CreateUserRequest {
     name: String,
     email: String,
     password: String,
 }
 
 pub fn create(
-    body: web::Json<UserCreateIO>,
+    body: web::Json<CreateUserRequest>,
     pool: web::Data<crate::DbPool>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
     let conn = pool
