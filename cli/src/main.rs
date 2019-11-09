@@ -1,3 +1,8 @@
+extern crate reqwest;
+#[macro_use]
+extern crate serde_json;
+
+use reqwest::StatusCode;
 use std::error::Error;
 use structopt::StructOpt;
 
@@ -63,9 +68,21 @@ fn run_register_command() -> Result<(), Box<dyn Error>> {
         .with_confirmation("Please re-enter your password", "Passwords do not match")
         .interact()?;
 
-    println!(
-        "name: {:?}, email: {:?}, password: {:?}",
-        name, email, password
-    );
+    let body = json!({
+        "name": name,
+        "email": email,
+        "password": password,
+    });
+
+    let response = reqwest::Client::new()
+        .post("http://localhost:3001/v1/users")
+        .json(&body)
+        .send()?;
+
+    match response.status() {
+        StatusCode::CREATED => println!("User registered"),
+        _ => println!("Something went wrong"),
+    }
+
     Ok(())
 }
