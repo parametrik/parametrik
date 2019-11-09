@@ -80,9 +80,13 @@ fn run_register_command() -> Result<(), Box<dyn Error>> {
         .send()?;
 
     match response.status() {
-        StatusCode::CREATED => println!("User registered"),
-        _ => println!("Something went wrong"),
+        StatusCode::CREATED => {
+            println!("User registered");
+            Ok(())
+        },
+        _ => {
+            eprintln!("Something went wrong");
+            ::std::process::exit(1);
+        },
     }
-
-    Ok(())
 }
