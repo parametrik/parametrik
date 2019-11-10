@@ -12,6 +12,9 @@ use structopt::StructOpt;
     about = "Command-line interface for Parametrik"
 )]
 struct Opt {
+    #[structopt(short, long, default_value = "http://localhost:3001")]
+    url: String,
+
     #[structopt(subcommand)]
     cmd: Command,
 }
@@ -31,7 +34,7 @@ fn main() {
     let opts = Opt::from_args();
     match opts.cmd {
         Command::Login { email, password } => run_login_command(&email, &password).unwrap(),
-        Command::Register => run_register_command().unwrap(),
+        Command::Register => run_register_command(&opts.url).unwrap(),
     };
 }
 
@@ -56,7 +59,7 @@ fn run_login_command(
     Ok(())
 }
 
-fn run_register_command() -> Result<(), Box<dyn Error>> {
+fn run_register_command(url: &String) -> Result<(), Box<dyn Error>> {
     let name = dialoguer::Input::<String>::new()
         .with_prompt("Full name")
         .interact()?;
@@ -74,19 +77,17 @@ fn run_register_command() -> Result<(), Box<dyn Error>> {
         "password": password,
     });
 
-    let response = reqwest::Client::new()
-        .post("http://localhost:3001/v1/users")
-        .json(&body)
-        .send()?;
+    let users_url = format!("{}/v1/users", url);
+    let response = reqwest::Client::new().post(&users_url).json(&body).send()?;
 
     match response.status() {
         StatusCode::CREATED => {
             println!("User registered");
             Ok(())
-        },
+        }
         _ => {
             eprintln!("Something went wrong");
             ::std::process::exit(1);
-        },
+        }
     }
 }
