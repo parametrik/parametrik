@@ -1,7 +1,4 @@
-extern crate reqwest;
-#[macro_use]
-extern crate serde_json;
-
+use serde_json::json;
 use reqwest::StatusCode;
 use std::error::Error;
 use structopt::StructOpt;
