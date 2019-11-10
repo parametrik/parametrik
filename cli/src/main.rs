@@ -1,5 +1,5 @@
-use serde_json::json;
 use reqwest::StatusCode;
+use serde_json::json;
 use std::error::Error;
 use structopt::StructOpt;
 
@@ -30,7 +30,9 @@ enum Command {
 fn main() {
     let opts = Opt::from_args();
     match opts.cmd {
-        Command::Login { email, password } => run_login_command(&email, &password).unwrap(),
+        Command::Login { email, password } => {
+            run_login_command(&email, &password, &opts.url).unwrap()
+        }
         Command::Register => run_register_command(&opts.url).unwrap(),
     };
 }
@@ -38,6 +40,7 @@ fn main() {
 fn run_login_command(
     maybe_email: &Option<String>,
     maybe_password: &Option<String>,
+    url: &String,
 ) -> Result<(), Box<dyn Error>> {
     let email = match maybe_email {
         None => dialoguer::Input::<String>::new()
@@ -52,8 +55,19 @@ fn run_login_command(
         Some(p) => p.to_owned(),
     };
 
-    println!("email: {:?}, password: {:?}", email, password);
-    Ok(())
+    let user_tokens_url = format!("{}/v1/user_tokens", url);
+    let response = reqwest::Client::new()
+        .get(&user_tokens_url)
+        .basic_auth(&email, Some(&password))
+        .send()?;
+
+    match response.status() {
+        StatusCode::OK => Ok(()),
+        _ => {
+            eprintln!("Something went wrong");
+            ::std::process::exit(1);
+        }
+    }
 }
 
 fn run_register_command(url: &String) -> Result<(), Box<dyn Error>> {
