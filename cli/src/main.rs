@@ -96,6 +96,10 @@ fn run_register_command(url: &String) -> Result<(), Box<dyn Error>> {
             println!("User registered");
             Ok(())
         }
+        StatusCode::CONFLICT => {
+            eprintln!("You are already registered. Use `para login` instead.");
+            ::std::process::exit(1);
+        }
         _ => {
             eprintln!("Something went wrong");
             ::std::process::exit(1);

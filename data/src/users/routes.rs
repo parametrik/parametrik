@@ -1,8 +1,9 @@
-use actix_web::{web, Error, HttpResponse};
+use actix_web::{error::BlockingError, web, Error, HttpResponse};
+use diesel::result::{DatabaseErrorKind::UniqueViolation, Error::DatabaseError};
 use futures::Future;
 use serde::Deserialize;
 
-use crate::users::models::User;
+use crate::users::models::{AuthenticationError, User};
 
 #[derive(Deserialize)]
 pub struct CreateUserRequest {
@@ -21,6 +22,13 @@ pub fn create(
         .expect("Could not establish a database connection");
     web::block(move || User::register(&body.name, &body.email, &body.password, &conn)).then(|res| {
         match res {
+            Err(BlockingError::Error(err)) => match err {
+                AuthenticationError::DatabaseError(e) => match e {
+                    DatabaseError(UniqueViolation, _) => Ok(HttpResponse::Conflict().into()),
+                    _ => Ok(HttpResponse::InternalServerError().into()),
+                },
+                _ => Ok(HttpResponse::InternalServerError().into()),
+            },
             Err(_) => Ok(HttpResponse::InternalServerError().into()),
             Ok(user) => Ok(HttpResponse::Created().json(user)),
         }
