@@ -6,7 +6,7 @@ use serde::Deserialize;
 use crate::users::models::{AuthenticationError, User};
 
 #[derive(Deserialize)]
-pub struct CreateUserRequest {
+struct CreateUserRequest {
     name: String,
     email: String,
     password: String,

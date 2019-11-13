@@ -1,7 +1,9 @@
 use crate::schema::users;
+use chrono::{Duration, Utc};
 use diesel::prelude::*;
+use jsonwebtoken::{encode, Header};
 use scrypt::{scrypt_check, scrypt_simple, ScryptParams};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum AuthenticationError {
@@ -9,6 +11,7 @@ pub enum AuthenticationError {
     IncorrectPassword,
     NoUsernameSet,
     NoPasswordSet,
+    TokenGenerationError(jsonwebtoken::errors::Error),
     EnvironmentError(dotenv::Error),
     ScryptCheckError(scrypt::errors::CheckError),
     ScryptParamsError(scrypt::errors::InvalidParams),
@@ -21,6 +24,13 @@ pub struct User {
     pub id: i32,
     pub name: String,
     pub email: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    sub: String,
+    iat: i64,
+    exp: i64,
 }
 
 #[derive(Queryable)]
@@ -94,6 +104,25 @@ impl User {
                 .map(|_| with_password.user)
                 .map_err(|_| AuthenticationError::IncorrectPassword),
         }
+    }
+
+    pub fn login(
+        email: &str,
+        password: &str,
+        conn: &PgConnection,
+    ) -> Result<String, AuthenticationError> {
+        User::find(email, password, conn).and_then(|_| {
+            let now = Utc::now().timestamp();
+            let claims = Claims {
+                sub: email.to_string(),
+                iat: now,
+                exp: now + Duration::days(90).num_seconds(),
+            };
+
+            let header = Header::default();
+            encode(&header, &claims, "secret".as_ref())
+                .map_err(AuthenticationError::TokenGenerationError)
+        })
     }
 }
 
