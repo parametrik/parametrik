@@ -8,7 +8,6 @@ extern crate assert_matches;
 #[macro_use]
 extern crate lazy_static;
 
-use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{middleware, web, App, HttpServer};
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -18,8 +17,8 @@ pub mod schema;
 pub mod test_helpers;
 
 pub mod auth;
-pub mod users;
 pub mod config;
+pub mod users;
 
 pub type DbPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -31,9 +30,9 @@ fn get_db_connection_pool(url: &str) -> DbPool {
 }
 
 #[derive(Clone, Debug)]
-struct Keypair<'a> {
-    pub secret: &'a [u8],
-    pub public: &'a [u8],
+pub struct Keypair {
+    pub secret: Vec<u8>,
+    pub public: Vec<u8>,
 }
 
 fn main() -> std::io::Result<()> {
@@ -42,29 +41,22 @@ fn main() -> std::io::Result<()> {
     env_logger::init();
 
     let pool = get_db_connection_pool(&config::DATABASE_URL);
-    HttpServer::new(move || {
-        let secret_key = config::get_secret_key();
-        let public_key = config::get_public_key();
-        let keypair = Keypair {
-            secret: &secret_key,
-            public: &public_key,
-        };
+    let key = Keypair {
+        secret: config::get_secret_key(),
+        public: config::get_public_key(),
+    };
 
+    HttpServer::new(move || {
         App::new()
             .data(pool.clone())
-            .data(keypair)
-            .wrap(IdentityService::new(
-                CookieIdentityPolicy::new(keypair.secret)
-                    .name("auth")
-                    .path("/")
-                    .domain(config::DOMAIN.as_str())
-                    .max_age_time(chrono::Duration::days(90))
-                    .secure(false),
-            ))
+            .data(key.clone())
             .wrap(middleware::Logger::default())
             .service(
                 web::scope("/v1")
-                    .service(web::scope("/users").service(crate::users::routes::build_routes())),
+                    .service(web::scope("/users").service(crate::users::routes::build_routes()))
+                    .service(
+                        web::scope("/user_tokens").service(crate::auth::routes::build_routes()),
+                    ),
             )
     })
     .bind("127.0.0.1:3001")?
