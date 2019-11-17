@@ -2,7 +2,6 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::errors::Error;
 use jsonwebtoken::{decode, encode, Header, Validation};
 use serde::{Deserialize, Serialize};
-use std::env;
 
 use crate::users::models::User;
 
@@ -24,21 +23,15 @@ impl From<&User> for Claims {
     }
 }
 
-pub fn create_token(user: &User) -> Result<String, Error> {
+pub fn create_token(secret: &[u8], user: &User) -> Result<String, Error> {
     let claims = Claims::from(user);
-    encode(&Header::default(), &claims, get_secret())
+    encode(&Header::default(), &claims, secret)
 }
 
-pub fn decode_token(token: &str) -> Result<String, Error> {
+pub fn decode_token(secret: &[u8], token: &str) -> Result<String, Error> {
     let validation = Validation {
         leeway: 60,
         ..Validation::default()
     };
-    decode::<Claims>(token, get_secret(), &validation).map(|data| data.claims.sub)
-}
-
-fn get_secret<'a>() -> &'a [u8] {
-    env::var("JWT_SECRET_KEY")
-        .expect("JWT_SECRET_KEY must be set")
-        .as_bytes()
+    decode::<Claims>(token, secret, &validation).map(|data| data.claims.sub)
 }
