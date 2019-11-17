@@ -1,7 +1,11 @@
 use reqwest::StatusCode;
+use serde::Deserialize;
 use serde_json::json;
 use std::error::Error;
 use structopt::StructOpt;
+use crate::config::Config;
+
+mod config;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -29,18 +33,26 @@ enum Command {
 
 fn main() {
     let opts = Opt::from_args();
+    let config = Config::new();
     match opts.cmd {
         Command::Login { email, password } => {
-            run_login_command(&email, &password, &opts.url).unwrap()
+            run_login_command(&email, &password, &opts.url, &config).unwrap()
         }
         Command::Register => run_register_command(&opts.url).unwrap(),
     };
+}
+
+#[derive(Deserialize)]
+struct LoginResponse {
+    #[serde(rename = "accessToken")]
+    access_token: String,
 }
 
 fn run_login_command(
     maybe_email: &Option<String>,
     maybe_password: &Option<String>,
     url: &String,
+    config: &Config,
 ) -> Result<(), Box<dyn Error>> {
     let email = match maybe_email {
         None => dialoguer::Input::<String>::new()
@@ -55,14 +67,30 @@ fn run_login_command(
         Some(p) => p.to_owned(),
     };
 
-    let user_tokens_url = format!("{}/v1/user_tokens", url);
-    let response = reqwest::Client::new()
-        .get(&user_tokens_url)
-        .basic_auth(&email, Some(&password))
-        .send()?;
+    let body = json!({
+        "email": email,
+        "password": password,
+    });
 
-    match response.status() {
-        StatusCode::OK => Ok(()),
+    let user_tokens_url = format!("{}/v1/user_tokens", url);
+    let access_token: reqwest::Result<LoginResponse> = reqwest::Client::new()
+        .post(&user_tokens_url)
+        .json(&body)
+        .send()?
+        .json();
+
+    match access_token {
+        Ok(LoginResponse { access_token }) => {
+            match &config.path {
+                None => println!("{}", &access_token),
+                Some(config_dir) => {
+                    let mut auth_path = config_dir.clone();
+                    auth_path.push("access_token");
+                    std::fs::write(auth_path, &access_token)?;
+                },
+            }
+            Ok(())
+        },
         _ => {
             eprintln!("Something went wrong");
             ::std::process::exit(1);
